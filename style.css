@@ -32,8 +32,8 @@ body {
   font-weight: 800;
   letter-spacing: 8px;
   padding-left: 8px; /* compensa el letter-spacing final */
-  color: #7aa2f7;
-  text-shadow: 0 0 12px rgba(122, 162, 247, 0.6);
+  color: #9ece6a;
+  text-shadow: 0 0 12px rgba(158, 206, 106, 0.6);
 }
 
 .site-title span {
