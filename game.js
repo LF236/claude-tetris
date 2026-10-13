@@ -13,6 +13,7 @@ const COLORS = [
   '#e57373', // Z - red
   '#90caf9', // J - pale blue
   '#ffb74d', // L - orange
+  '#b0bec5', // Nut - metallic silver
 ];
 
 const PIECES = [
@@ -24,6 +25,7 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // Nut
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
@@ -40,14 +42,14 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, boardHoles;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = Math.floor(Math.random() * 8) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -91,6 +93,8 @@ function merge() {
     for (let c = 0; c < current.shape[r].length; c++)
       if (current.shape[r][c])
         board[current.y + r][current.x + c] = current.shape[r][c];
+  if (current.type === 8)
+    boardHoles.add(`${current.y + 1},${current.x + 1}`);
 }
 
 function clearLines() {
@@ -99,6 +103,12 @@ function clearLines() {
     if (board[r].every(v => v !== 0)) {
       board.splice(r, 1);
       board.unshift(new Array(COLS).fill(0));
+      const newHoles = new Set();
+      for (const key of boardHoles) {
+        const [hr, hc] = key.split(',').map(Number);
+        newHoles.add(hr < r ? `${hr + 1},${hc}` : key);
+      }
+      boardHoles = newHoles;
       cleared++;
       r++;
     }
@@ -156,6 +166,18 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
+function drawNutHole(context, bx, by, size, alpha) {
+  const cx = bx * size + size / 2;
+  const cy = by * size + size / 2;
+  context.globalAlpha = alpha ?? 1;
+  context.beginPath();
+  context.arc(cx, cy, size * 0.3, 0, Math.PI * 2);
+  context.strokeStyle = COLORS[8];
+  context.lineWidth = 2;
+  context.stroke();
+  context.globalAlpha = 1;
+}
+
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
   const color = COLORS[colorIndex];
@@ -193,6 +215,10 @@ function draw() {
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++)
       drawBlock(ctx, c, r, board[r][c], BLOCK);
+  for (const key of boardHoles) {
+    const [r, c] = key.split(',').map(Number);
+    drawNutHole(ctx, c, r, BLOCK);
+  }
 
   // ghost
   const gy = ghostY();
@@ -200,11 +226,13 @@ function draw() {
     for (let c = 0; c < current.shape[r].length; c++)
       if (current.shape[r][c])
         drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
+  if (current.type === 8) drawNutHole(ctx, current.x + 1, gy + 1, BLOCK, 0.2);
 
   // current piece
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+  if (current.type === 8) drawNutHole(ctx, current.x + 1, current.y + 1, BLOCK);
 }
 
 function drawNext() {
@@ -216,6 +244,7 @@ function drawNext() {
   for (let r = 0; r < shape.length; r++)
     for (let c = 0; c < shape[r].length; c++)
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+  if (next.type === 8) drawNutHole(nextCtx, offX + 1, offY + 1, NB);
 }
 
 function endGame() {
@@ -263,6 +292,7 @@ function init() {
   level = 1;
   paused = false;
   gameOver = false;
+  boardHoles = new Set();
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
