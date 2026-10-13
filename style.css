@@ -270,3 +270,89 @@ kbd {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ---- Challenge selector ---- */
+#challenge-select .overlay-box {
+  gap: 14px;
+}
+
+.csel-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--label);
+}
+
+.csel-title::after {
+  content: '';
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: var(--accent);
+  margin: 5px auto 0;
+  border-radius: 1px;
+}
+
+#challenge-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.challenge-btn {
+  --mc: var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 8px 12px;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  transition: border-color 0.15s, transform 0.12s;
+}
+
+.cb-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.cb-name {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--mc);
+}
+
+.cb-desc {
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--muted);
+  line-height: 1.3;
+  text-align: center;
+}
+
+.challenge-btn:hover {
+  border-color: var(--mc);
+  transform: translateY(-2px);
+}
+
+.challenge-btn:hover .cb-name {
+  text-shadow: 0 0 10px var(--mc);
+}
+
+.challenge-btn:active {
+  transform: translateY(0);
+}
+
+/* ---- Challenge HUD ---- */
+.challenge-hud-value {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  line-height: 1.4;
+}

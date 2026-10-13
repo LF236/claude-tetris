@@ -25,6 +25,7 @@ const COLORS = [
   '#aed581', // 17 Y - lime
   '#ffffff', // 18 Mono (1×1) - white
   '#ff6e40', // 19 Challenge (3×3) - deep orange
+  '#546e7a', // 20 Garbage - blue-grey
 ];
 
 const WILDCARD = 9;
@@ -33,6 +34,7 @@ const POWER_INTERVAL = 2;
 const PENTOMINOS = [15, 16, 17];
 const MONO = 18;
 const CHALLENGE = 19;
+const GARBAGE = 20;
 const POWER_NAMES = { 10: 'BOMBA', 11: 'RAYO', 12: 'TINTE', 13: 'GRAVEDAD', 14: 'CONGELAR' };
 const POWER_SYMBOLS = { 10: '💣', 11: '⚡', 12: '🎨', 13: '🌊', 14: '❄' };
 
@@ -72,10 +74,152 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const challengeSelectEl = document.getElementById('challenge-select');
+const challengeHudSection = document.getElementById('challenge-hud');
+const challengeHudValue = document.getElementById('challenge-hud-value');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, boardHoles;
 let pendingPower, pendingMono, frozenUntil, powerAnim;
 let combo, lastWasDifficult, lastWasRotate, floatTexts, audioCtx;
+let challengeMode, invisibleCells;
+
+// ---- Challenge system ----
+
+const CHALLENGES = {
+  sprint: {
+    label: '⏱ SPRINT 40',
+    desc: 'Limpia 40 líneas en 2 min',
+    setup() { return { startLines: 0, timeLeft: 120_000 }; },
+    tick(state, dt) {
+      if (gameOver) return;
+      state.timeLeft = Math.max(0, state.timeLeft - dt);
+      if (state.timeLeft === 0 && lines - state.startLines < 40) loseChallenge('¡TIEMPO AGOTADO!');
+    },
+    onLines(state) {
+      if (lines - state.startLines >= 40) winChallenge();
+    },
+    hud(state) {
+      const secs = Math.ceil(state.timeLeft / 1000);
+      return `${lines - state.startLines}/40 · ${formatSecs(secs)}`;
+    },
+  },
+  garbage: {
+    label: '🗑 BASURA',
+    desc: 'Basura sube cada 10s · sobrevive',
+    setup() { return { garbageTimer: 10_000 }; },
+    tick(state, dt) {
+      if (gameOver) return;
+      state.garbageTimer -= dt;
+      if (state.garbageTimer <= 0) {
+        state.garbageTimer += 10_000;
+        riseGarbage();
+      }
+    },
+    onLines() {},
+    hud(state) { return `Basura en ${Math.ceil(state.garbageTimer / 1000)}s`; },
+  },
+  preset: {
+    label: '🧱 PRESET',
+    desc: 'Tablero con bloques pre-colocados',
+    setup() { fillPreset(); return {}; },
+    tick() {},
+    onLines() {},
+    hud() { return `${lines} líneas · Lv ${level}`; },
+  },
+  invisible: {
+    label: '👁 INVISIBLE',
+    desc: 'Piezas invisibles al tocar el suelo',
+    setup() { return {}; },
+    tick() {},
+    onLines() {},
+    hud() { return `${lines} líneas · Lv ${level}`; },
+  },
+  mirror: {
+    label: '🔄 INVERSO',
+    desc: 'Rotación invertida en nivel 5+',
+    setup() { return {}; },
+    tick() {},
+    onLines() {},
+    hud() { return `${lines} líneas · Lv ${level} ${level >= 5 ? '↺' : '↻'}`; },
+  },
+};
+
+function formatSecs(s) {
+  const m = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${m}:${String(ss).padStart(2, '0')}`;
+}
+
+function winChallenge() {
+  if (gameOver) return;
+  gameOver = true;
+  cancelAnimationFrame(animId);
+  overlayTitle.textContent = '🏆 ¡COMPLETADO!';
+  overlayTitle.style.color = '#ffd700';
+  overlayScore.textContent = `${score.toLocaleString()} pts`;
+  overlay.classList.remove('hidden');
+}
+
+function loseChallenge(reason) {
+  if (gameOver) return;
+  gameOver = true;
+  cancelAnimationFrame(animId);
+  overlayTitle.textContent = reason;
+  overlayTitle.style.color = '';
+  overlayScore.textContent = `${score.toLocaleString()} pts`;
+  overlay.classList.remove('hidden');
+}
+
+function riseGarbage() {
+  board.shift();
+  const row = Array.from({ length: COLS }, () => GARBAGE);
+  row[Math.floor(Math.random() * COLS)] = 0;
+  board.push(row);
+
+  current.y = Math.max(0, current.y - 1);
+
+  const newHoles = new Set();
+  for (const key of boardHoles) {
+    const [hr, hc] = key.split(',').map(Number);
+    if (hr > 0) newHoles.add(`${hr - 1},${hc}`);
+  }
+  boardHoles = newHoles;
+
+  if (invisibleCells.size) {
+    const newInvisible = new Set();
+    for (const key of invisibleCells) {
+      const [hr, hc] = key.split(',').map(Number);
+      if (hr > 0) newInvisible.add(`${hr - 1},${hc}`);
+    }
+    invisibleCells = newInvisible;
+  }
+
+  if (collide(current.shape, current.x, current.y)) endGame();
+}
+
+function fillPreset() {
+  for (let r = Math.floor(ROWS * 0.5); r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (Math.random() < 0.72) board[r][c] = Math.floor(Math.random() * 7) + 1;
+    }
+    let holes = 0;
+    for (let c = 0; c < COLS; c++) if (!board[r][c]) holes++;
+    if (!holes) board[r][Math.floor(Math.random() * COLS)] = 0;
+  }
+}
+
+function showChallengeSelect() {
+  overlay.classList.add('hidden');
+  challengeSelectEl.classList.remove('hidden');
+}
+
+function startGame(id) {
+  challengeSelectEl.classList.add('hidden');
+  challengeMode = id === 'classic' ? null : { id };
+  init();
+}
+
+// ---- Board ----
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -133,8 +277,18 @@ function rotateCW(shape) {
   return result;
 }
 
+function rotateCCW(shape) {
+  const rows = shape.length, cols = shape[0].length;
+  const result = Array.from({ length: cols }, () => new Array(rows).fill(0));
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++)
+      result[cols - 1 - c][r] = shape[r][c];
+  return result;
+}
+
 function tryRotate() {
-  const rotated = rotateCW(current.shape);
+  const useInverse = challengeMode?.id === 'mirror' && level >= 5;
+  const rotated = useInverse ? rotateCCW(current.shape) : rotateCW(current.shape);
   const kicks = [0, -1, 1, -2, 2];
   for (const kick of kicks) {
     if (!collide(rotated, current.x + kick, current.y)) {
@@ -153,6 +307,12 @@ function merge() {
         board[current.y + r][current.x + c] = current.shape[r][c];
   if (current.type === 8)
     boardHoles.add(`${current.y + 1},${current.x + 1}`);
+  if (challengeMode?.id === 'invisible') {
+    for (let r = 0; r < current.shape.length; r++)
+      for (let c = 0; c < current.shape[r].length; c++)
+        if (current.shape[r][c])
+          invisibleCells.add(`${current.y + r},${current.x + c}`);
+  }
 }
 
 function purgeStaleHoles() {
@@ -169,7 +329,7 @@ function purgeStaleHoles() {
 function clearLines(tspin = null, fromPower = false) {
   let cleared = 0;
   for (let r = ROWS - 1; r >= 0; r--) {
-    const empties  = board[r].filter(v => v === 0).length;
+    const empties   = board[r].filter(v => v === 0).length;
     const wildcards = board[r].filter(v => v === WILDCARD).length;
     if (empties <= wildcards) {
       board.splice(r, 1);
@@ -180,6 +340,14 @@ function clearLines(tspin = null, fromPower = false) {
         newHoles.add(hr < r ? `${hr + 1},${hc}` : key);
       }
       boardHoles = newHoles;
+      if (invisibleCells.size) {
+        const newInvisible = new Set();
+        for (const key of invisibleCells) {
+          const [hr, hc] = key.split(',').map(Number);
+          if (hr !== r) newInvisible.add(hr < r ? `${hr + 1},${hc}` : key);
+        }
+        invisibleCells = newInvisible;
+      }
       cleared++;
       r++;
     }
@@ -195,6 +363,9 @@ function clearLines(tspin = null, fromPower = false) {
   level = Math.floor(lines / 10) + 1;
   dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   if (Math.floor(lines / POWER_INTERVAL) > prevMilestone) pendingPower = true;
+
+  if (challengeMode) CHALLENGES[challengeMode.id].onLines(challengeMode.state);
+  if (gameOver) return cleared;
 
   const perfectClear = board.every(row => row.every(v => v === 0));
   const isDifficult = cleared >= 4 || !!tspin;
@@ -479,7 +650,6 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
 
   if (colorIndex === WILDCARD) {
-    // 8-pointed star to mark wildcards
     const cx = x * size + size / 2;
     const cy = y * size + size / 2;
     const s = size * 0.22;
@@ -528,13 +698,14 @@ function drawGrid() {
 }
 
 function draw() {
+  if (!current) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
 
-  // board
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++)
-      drawBlock(ctx, c, r, board[r][c], BLOCK);
+      if (!invisibleCells.has(`${r},${c}`))
+        drawBlock(ctx, c, r, board[r][c], BLOCK);
   for (const key of boardHoles) {
     const [r, c] = key.split(',').map(Number);
     drawNutHole(ctx, c, r, BLOCK);
@@ -556,7 +727,6 @@ function draw() {
 
   const now = performance.now();
 
-  // Freeze overlay
   if (frozenUntil && now < frozenUntil) {
     const secs = Math.ceil((frozenUntil - now) / 1000);
     ctx.fillStyle = 'rgba(100, 200, 255, 0.06)';
@@ -568,7 +738,6 @@ function draw() {
     ctx.textAlign = 'left';
   }
 
-  // Power flash label
   if (powerAnim) {
     const elapsed = now - powerAnim.startTime;
     const duration = 1800;
@@ -587,10 +756,8 @@ function draw() {
     }
   }
 
-  // Floating score texts
   drawFloatTexts();
 
-  // Persistent combo indicator
   if (combo > 1) {
     const mult = Math.min(combo, 8);
     ctx.font = 'bold 11px monospace';
@@ -649,15 +816,17 @@ function drawNext() {
 }
 
 function endGame() {
+  if (gameOver) return;
   gameOver = true;
   cancelAnimationFrame(animId);
   overlayTitle.textContent = 'GAME OVER';
+  overlayTitle.style.color = '';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
 }
 
 function togglePause() {
-  if (gameOver) return;
+  if (!current || gameOver) return;
   paused = !paused;
   if (!paused) {
     lastTime = performance.now();
@@ -665,6 +834,7 @@ function togglePause() {
   } else {
     cancelAnimationFrame(animId);
     overlayTitle.textContent = 'PAUSA';
+    overlayTitle.style.color = '';
     overlayScore.textContent = '';
     overlay.classList.remove('hidden');
   }
@@ -673,6 +843,14 @@ function togglePause() {
 function loop(ts) {
   const dt = ts - lastTime;
   lastTime = ts;
+
+  if (challengeMode) {
+    const def = CHALLENGES[challengeMode.id];
+    def.tick(challengeMode.state, dt);
+    if (gameOver) return;
+    challengeHudValue.textContent = def.hud(challengeMode.state);
+  }
+
   const frozen = frozenUntil > 0 && ts < frozenUntil;
   if (!frozen) {
     dropAccum += dt;
@@ -699,6 +877,7 @@ function init() {
   paused = false;
   gameOver = false;
   boardHoles = new Set();
+  invisibleCells = new Set();
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
@@ -710,6 +889,14 @@ function init() {
   lastWasDifficult = false;
   lastWasRotate = false;
   floatTexts = [];
+
+  if (challengeMode) {
+    challengeMode.state = CHALLENGES[challengeMode.id].setup();
+    challengeHudSection.style.display = '';
+  } else {
+    challengeHudSection.style.display = 'none';
+  }
+
   next = randomPiece();
   spawn();
   updateHUD();
@@ -719,7 +906,8 @@ function init() {
 }
 
 document.addEventListener('keydown', e => {
-  getAudioCtx(); // init on first user gesture
+  getAudioCtx();
+  if (!current) return;
   if (e.code === 'KeyP') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
@@ -744,7 +932,11 @@ document.addEventListener('keydown', e => {
   updateHUD();
 });
 
-restartBtn.addEventListener('click', init);
+restartBtn.addEventListener('click', showChallengeSelect);
+
+document.querySelectorAll('.challenge-btn').forEach(btn => {
+  btn.addEventListener('click', () => startGame(btn.dataset.id));
+});
 
 const themeToggle = document.getElementById('theme-toggle');
 const themeLabel = document.getElementById('theme-label');
@@ -761,4 +953,4 @@ themeToggle.addEventListener('click', () => {
   themeToggle.blur();
 });
 
-init();
+showChallengeSelect();

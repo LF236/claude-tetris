@@ -40,6 +40,11 @@
           <canvas id="next-canvas" width="120" height="120"></canvas>
         </div>
 
+        <div class="panel-section" id="challenge-hud" style="display:none">
+          <span class="label">DESAFÍO</span>
+          <span id="challenge-hud-value" class="challenge-hud-value">...</span>
+        </div>
+
         <div class="panel-section controls">
           <span class="label">CONTROLS</span>
           <ul>
@@ -51,6 +56,44 @@
           </ul>
         </div>
       </aside>
+    </div>
+
+    <div id="challenge-select" class="overlay">
+      <div class="overlay-box">
+        <p class="csel-title">MODO DE JUEGO</p>
+        <div id="challenge-list">
+          <button class="challenge-btn" data-id="classic" style="--mc:#7aa2f7">
+            <span class="cb-icon">🎮</span>
+            <span class="cb-name">CLÁSICO</span>
+            <span class="cb-desc">Sin límites</span>
+          </button>
+          <button class="challenge-btn" data-id="sprint" style="--mc:#ffd54f">
+            <span class="cb-icon">⏱</span>
+            <span class="cb-name">SPRINT 40</span>
+            <span class="cb-desc">40 líneas en 2 min</span>
+          </button>
+          <button class="challenge-btn" data-id="garbage" style="--mc:#e57373">
+            <span class="cb-icon">🗑</span>
+            <span class="cb-name">BASURA</span>
+            <span class="cb-desc">Basura sube cada 10s</span>
+          </button>
+          <button class="challenge-btn" data-id="preset" style="--mc:#ffb74d">
+            <span class="cb-icon">🧱</span>
+            <span class="cb-name">PRESET</span>
+            <span class="cb-desc">Tablero pre-colocado</span>
+          </button>
+          <button class="challenge-btn" data-id="invisible" style="--mc:#ba68c8">
+            <span class="cb-icon">👁</span>
+            <span class="cb-name">INVISIBLE</span>
+            <span class="cb-desc">Piezas ocultas al bloquearse</span>
+          </button>
+          <button class="challenge-btn" data-id="mirror" style="--mc:#4dd0e1">
+            <span class="cb-icon">🔄</span>
+            <span class="cb-name">INVERSO</span>
+            <span class="cb-desc">Rotación invertida Lv 5+</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <div id="overlay" class="overlay hidden">
