@@ -7,6 +7,13 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div id="skin-selector">
+    <button class="skin-btn active" data-skin="retro">RETRO</button>
+    <button class="skin-btn" data-skin="neon">NEON</button>
+    <button class="skin-btn" data-skin="pastel">PASTEL</button>
+    <button class="skin-btn" data-skin="pixel">PIXEL</button>
+  </div>
+
   <button id="theme-toggle" class="theme-toggle" role="switch" aria-checked="false" aria-label="Modo claro">
     <span id="theme-label">OSCURO</span>
     <span class="theme-track"><span class="theme-thumb"></span></span>
@@ -80,6 +87,7 @@
     <div id="challenge-select" class="overlay">
       <div class="overlay-box">
         <p class="csel-title">MODO DE JUEGO</p>
+        <div id="challenge-scores" class="challenge-scores"></div>
         <div id="challenge-list">
           <button class="challenge-btn" data-id="classic" style="--mc:#7aa2f7">
             <span class="cb-icon">🎮</span>
@@ -112,6 +120,7 @@
             <span class="cb-desc">Rotación invertida Lv 5+</span>
           </button>
         </div>
+        <button id="clear-records-btn" class="clear-records-btn">Resetear récords</button>
       </div>
     </div>
 
@@ -119,7 +128,46 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+        <div id="scores-table" class="scores-table"></div>
         <button id="restart-btn">Reiniciar</button>
+      </div>
+    </div>
+
+    <div id="pause-overlay" class="overlay hidden">
+      <div class="overlay-box pause-box">
+        <p class="pause-title">PAUSA</p>
+        <button id="pause-resume-btn" class="pause-btn">Reanudar</button>
+        <button id="pause-restart-btn" class="pause-btn">Reiniciar</button>
+        <button id="pause-controls-btn" class="pause-btn pause-btn--secondary">Ver controles</button>
+        <ul id="pause-controls-list" class="pause-controls-list hidden">
+          <li><kbd>←</kbd><kbd>→</kbd> mover</li>
+          <li><kbd>↑</kbd> / <kbd>X</kbd> rotar</li>
+          <li><kbd>↓</kbd> bajar lento</li>
+          <li><kbd>Space</kbd> caída dura</li>
+          <li><kbd>C</kbd> / <kbd>⇧</kbd> hold</li>
+          <li><kbd>P</kbd> / <kbd>Esc</kbd> pausa</li>
+          <li><kbd>Q</kbd> habilidad</li>
+        </ul>
+        <div class="pause-level-selector">
+          <label for="pause-start-level" class="pause-level-label">NIVEL INICIAL PRÓXIMA PARTIDA</label>
+          <select id="pause-start-level" class="pause-select">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+            <option value="13">13</option>
+            <option value="14">14</option>
+            <option value="15">15</option>
+          </select>
+        </div>
       </div>
     </div>
     </div>

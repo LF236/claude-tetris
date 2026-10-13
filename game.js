@@ -64,6 +64,25 @@ const PIECES = [
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+const SKINS = {
+  retro: {
+    colors: ['#4dd0e1','#ffd54f','#ba68c8','#81c784','#e57373','#90caf9','#ffb74d'],
+    bg: null,
+  },
+  neon: {
+    colors: ['#00fff5','#ffe600','#df00ff','#00ff41','#ff003c','#0099ff','#ff8800'],
+    bg: '#050508',
+  },
+  pastel: {
+    colors: ['#a8e6cf','#ffd3b6','#d4a5c9','#b8e0d2','#f9c0c0','#b5d5e8','#fce0a0'],
+    bg: null,
+  },
+  pixel: {
+    colors: ['#4dd0e1','#ffd54f','#ba68c8','#81c784','#e57373','#90caf9','#ffb74d'],
+    bg: null,
+  },
+};
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -83,10 +102,27 @@ const energyHint = document.getElementById('energy-hint');
 const holdCanvas = document.getElementById('hold-canvas');
 const holdCtx = holdCanvas.getContext('2d');
 const holdSection = document.getElementById('hold-section');
+const pauseOverlay = document.getElementById('pause-overlay');
+const pauseResumeBtn = document.getElementById('pause-resume-btn');
+const pauseRestartBtn = document.getElementById('pause-restart-btn');
+const pauseControlsBtn = document.getElementById('pause-controls-btn');
+const pauseControlsList = document.getElementById('pause-controls-list');
+const pauseStartLevelEl = document.getElementById('pause-start-level');
+
+let startLevel = parseInt(localStorage.getItem('tetris_startLevel') || '1', 10);
+if (startLevel < 1 || startLevel > 15 || isNaN(startLevel)) startLevel = 1;
+pauseStartLevelEl.value = String(startLevel);
+
+pauseStartLevelEl.addEventListener('change', () => {
+  startLevel = parseInt(pauseStartLevelEl.value, 10);
+  localStorage.setItem('tetris_startLevel', String(startLevel));
+});
+
+let currentSkin = localStorage.getItem('tetris_skin') || 'retro';
 
 let board, current, pieceQueue, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, boardHoles;
 let pendingPower, pendingMono, frozenUntil, powerAnim;
-let combo, lastWasDifficult, lastWasRotate, floatTexts, audioCtx;
+let combo, maxCombo, lastWasDifficult, lastWasRotate, floatTexts, audioCtx;
 let challengeMode, invisibleCells;
 let energy, skillMenuOpen, showingNext5, slowUntil, savedBoard, savedCurrent, savedScore, holdPiece, holdLocked;
 
@@ -96,7 +132,7 @@ const CHALLENGES = {
   sprint: {
     label: '⏱ SPRINT 40',
     desc: 'Limpia 40 líneas en 2 min',
-    setup() { return { startLines: 0, timeLeft: 120_000 }; },
+    setup() { return { startLines: lines, timeLeft: 120_000 }; },
     tick(state, dt) {
       if (gameOver) return;
       state.timeLeft = Math.max(0, state.timeLeft - dt);
@@ -165,6 +201,16 @@ function winChallenge() {
   overlayTitle.style.color = '#ffd700';
   overlayScore.textContent = `${score.toLocaleString()} pts`;
   overlay.classList.remove('hidden');
+  if (isTopScore(score)) {
+    const savedScore = score, savedCombo = maxCombo, savedLines = lines;
+    showNameInput(name => {
+      saveRecord(name, savedScore, savedCombo, savedLines);
+      renderScoresTable(true);
+      renderChallengeScores();
+    });
+  } else {
+    renderScoresTable();
+  }
 }
 
 function loseChallenge(reason) {
@@ -175,6 +221,16 @@ function loseChallenge(reason) {
   overlayTitle.style.color = '';
   overlayScore.textContent = `${score.toLocaleString()} pts`;
   overlay.classList.remove('hidden');
+  if (isTopScore(score)) {
+    const savedScore = score, savedCombo = maxCombo, savedLines = lines;
+    showNameInput(name => {
+      saveRecord(name, savedScore, savedCombo, savedLines);
+      renderScoresTable(true);
+      renderChallengeScores();
+    });
+  } else {
+    renderScoresTable();
+  }
 }
 
 function riseGarbage() {
@@ -217,6 +273,7 @@ function fillPreset() {
 
 function showChallengeSelect() {
   overlay.classList.add('hidden');
+  pauseOverlay.classList.add('hidden');
   challengeSelectEl.classList.remove('hidden');
 }
 
@@ -380,7 +437,7 @@ function clearLines(tspin = null, fromPower = false) {
   const isDifficult = cleared >= 4 || !!tspin;
   const b2b = isDifficult && lastWasDifficult;
 
-  if (!fromPower) combo++;
+  if (!fromPower) { combo++; if (combo > maxCombo) maxCombo = combo; }
   const comboMult = Math.min(combo, 8);
 
   let baseScore = 0;
@@ -654,27 +711,67 @@ function drawNutHole(context, bx, by, size, alpha) {
   context.globalAlpha = 1;
 }
 
+function getBlockColor(colorIndex) {
+  const skin = SKINS[currentSkin];
+  if (colorIndex >= 1 && colorIndex <= 7) return skin.colors[colorIndex - 1];
+  return COLORS[colorIndex];
+}
+
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
+  const color = getBlockColor(colorIndex);
   context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
 
+  // Draw base block according to skin
+  if (currentSkin === 'neon') {
+    context.shadowBlur = 14;
+    context.shadowColor = color;
+    context.fillStyle = color;
+    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    context.shadowBlur = 0;
+  } else if (currentSkin === 'pastel') {
+    context.fillStyle = color;
+    context.beginPath();
+    if (context.roundRect) {
+      context.roundRect(x * size + 2, y * size + 2, size - 4, size - 4, 6);
+    } else {
+      context.rect(x * size + 2, y * size + 2, size - 4, size - 4);
+    }
+    context.fill();
+  } else if (currentSkin === 'pixel') {
+    context.fillStyle = color;
+    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    // Checkerboard texture overlay
+    const hw = Math.floor((size - 2) / 2);
+    const bx = x * size + 1;
+    const by = y * size + 1;
+    context.fillStyle = 'rgba(0,0,0,0.18)';
+    context.fillRect(bx,      by,      hw, hw);
+    context.fillRect(bx + hw, by + hw, hw, hw);
+    context.fillStyle = 'rgba(255,255,255,0.08)';
+    context.fillRect(bx + hw, by,      hw, hw);
+    context.fillRect(bx,      by + hw, hw, hw);
+  } else {
+    // retro (default)
+    context.fillStyle = color;
+    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+  }
+
+  // Draw overlay decorations
   if (colorIndex === WILDCARD) {
     const cx = x * size + size / 2;
     const cy = y * size + size / 2;
     const s = size * 0.22;
     context.fillStyle = 'rgba(255,255,255,0.4)';
     context.beginPath();
-    context.moveTo(cx,       cy - s * 1.5);
-    context.lineTo(cx + s * 0.6, cy - s * 0.6);
-    context.lineTo(cx + s * 1.5, cy);
-    context.lineTo(cx + s * 0.6, cy + s * 0.6);
-    context.lineTo(cx,       cy + s * 1.5);
-    context.lineTo(cx - s * 0.6, cy + s * 0.6);
-    context.lineTo(cx - s * 1.5, cy);
-    context.lineTo(cx - s * 0.6, cy - s * 0.6);
+    context.moveTo(cx,            cy - s * 1.5);
+    context.lineTo(cx + s * 0.6,  cy - s * 0.6);
+    context.lineTo(cx + s * 1.5,  cy);
+    context.lineTo(cx + s * 0.6,  cy + s * 0.6);
+    context.lineTo(cx,            cy + s * 1.5);
+    context.lineTo(cx - s * 0.6,  cy + s * 0.6);
+    context.lineTo(cx - s * 1.5,  cy);
+    context.lineTo(cx - s * 0.6,  cy - s * 0.6);
     context.closePath();
     context.fill();
   } else if (colorIndex >= POWERS.BOMB && colorIndex <= POWERS.FREEZE) {
@@ -684,16 +781,21 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
     context.fillText(POWER_SYMBOLS[colorIndex], x * size + size / 2, y * size + size / 2);
     context.textAlign = 'left';
     context.textBaseline = 'alphabetic';
-  } else {
+  } else if (currentSkin === 'retro') {
     context.fillStyle = 'rgba(255,255,255,0.12)';
     context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  } else if (currentSkin === 'pastel') {
+    context.fillStyle = 'rgba(255,255,255,0.35)';
+    context.fillRect(x * size + 2, y * size + 2, size - 4, 5);
   }
 
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--grid').trim();
+  ctx.strokeStyle = currentSkin === 'neon'
+    ? 'rgba(0,255,200,0.08)'
+    : getComputedStyle(document.body).getPropertyValue('--grid').trim();
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -712,6 +814,8 @@ function drawGrid() {
 function draw() {
   if (!current) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = SKINS[currentSkin].bg || getComputedStyle(canvas).backgroundColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawGrid();
 
   for (let r = 0; r < ROWS; r++)
@@ -1050,6 +1154,105 @@ function drawHold() {
       drawBlock(holdCtx, offX + c, offY + r, shape[r][c], NB);
 }
 
+// ---- High Scores ----
+
+function loadRecords() {
+  try { return JSON.parse(localStorage.getItem('tetris_records') || '[]'); } catch(e) { return []; }
+}
+
+function saveRecord(name, score, combo, lines) {
+  const records = loadRecords();
+  _lastRecordTs = Date.now();
+  records.push({ name: name.trim() || 'AAA', score, combo, lines, date: new Date().toLocaleDateString(), _ts: _lastRecordTs });
+  records.sort((a, b) => b.score - a.score);
+  records.splice(5); // top 5 only
+  localStorage.setItem('tetris_records', JSON.stringify(records));
+  return records;
+}
+
+function clearRecords() {
+  localStorage.removeItem('tetris_records');
+  renderScoresTable();
+  renderChallengeScores();
+}
+
+function isTopScore(score) {
+  const records = loadRecords();
+  return records.length < 5 || score > records[records.length - 1].score;
+}
+
+let _lastRecordTs = null;
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderScoresTable(highlightNew = false) {
+  const el = document.getElementById('scores-table');
+  if (!el) return;
+  const records = loadRecords();
+  if (!records.length) {
+    el.innerHTML = '<p class="scores-empty">Sin récords aún</p>';
+    return;
+  }
+  const rows = records.map((r, i) => {
+    const isNew = highlightNew && r._ts === _lastRecordTs;
+    return `<tr class="${isNew ? 'score-new' : ''}">
+      <td class="sc-rank">#${i + 1}</td>
+      <td class="sc-name">${escHtml(r.name)}</td>
+      <td class="sc-score">${r.score.toLocaleString()}</td>
+      <td class="sc-combo">×${r.combo}</td>
+      <td class="sc-lines">${r.lines}L</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<table class="scores-tbl"><thead><tr>
+    <th></th><th>NOM</th><th>PTS</th><th>CMB</th><th>LIN</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderChallengeScores() {
+  const el = document.getElementById('challenge-scores');
+  if (!el) return;
+  const records = loadRecords();
+  if (!records.length) { el.innerHTML = ''; return; }
+  const rows = records.map((r, i) =>
+    `<span class="cs-rank">#${i + 1}</span><span class="cs-name">${escHtml(r.name)}</span><span class="cs-score">${r.score.toLocaleString()}</span>`
+  ).join('');
+  el.innerHTML = `<div class="cs-list">${rows}</div>`;
+}
+
+function showNameInput(onConfirm) {
+  const overlayBox = overlay.querySelector('.overlay-box');
+  const existing = document.getElementById('name-input-form');
+  if (existing) existing.remove();
+
+  const form = document.createElement('div');
+  form.id = 'name-input-form';
+  form.className = 'name-input-form';
+  form.innerHTML = `
+    <label class="name-input-label">TU NOMBRE (3 letras)</label>
+    <div class="name-input-row">
+      <input id="name-input" class="name-input" type="text" maxlength="3" placeholder="AAA" autocomplete="off" />
+      <button id="name-confirm-btn" class="name-confirm-btn">OK</button>
+    </div>
+  `;
+  // Insert before restart-btn
+  const restartBtnEl = document.getElementById('restart-btn');
+  overlayBox.insertBefore(form, restartBtnEl);
+
+  const input = document.getElementById('name-input');
+  const confirmBtn = document.getElementById('name-confirm-btn');
+  input.focus();
+
+  function confirm() {
+    const name = input.value;
+    form.remove();
+    onConfirm(name);
+  }
+  confirmBtn.addEventListener('click', confirm);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirm(); } });
+}
+
 function endGame() {
   if (gameOver) return;
   gameOver = true;
@@ -1058,20 +1261,29 @@ function endGame() {
   overlayTitle.style.color = '';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
+  if (isTopScore(score)) {
+    const savedScore = score, savedCombo = maxCombo, savedLines = lines;
+    showNameInput(name => {
+      saveRecord(name, savedScore, savedCombo, savedLines);
+      renderScoresTable(true);
+      renderChallengeScores();
+    });
+  } else {
+    renderScoresTable();
+  }
 }
 
 function togglePause() {
   if (!current || gameOver) return;
   paused = !paused;
   if (!paused) {
+    pauseOverlay.classList.add('hidden');
     lastTime = performance.now();
     loop(lastTime);
   } else {
     cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayTitle.style.color = '';
-    overlayScore.textContent = '';
-    overlay.classList.remove('hidden');
+    pauseControlsList.classList.add('hidden');
+    pauseOverlay.classList.remove('hidden');
   }
 }
 
@@ -1108,13 +1320,13 @@ function loop(ts) {
 function init() {
   board = createBoard();
   score = 0;
-  lines = 0;
-  level = 1;
+  level = startLevel;
+  lines = (startLevel - 1) * 10;
   paused = false;
   gameOver = false;
   boardHoles = new Set();
   invisibleCells = new Set();
-  dropInterval = 1000;
+  dropInterval = Math.max(100, 1000 - (startLevel - 1) * 90);
   dropAccum = 0;
   lastTime = performance.now();
   pendingPower = false;
@@ -1122,6 +1334,7 @@ function init() {
   frozenUntil = 0;
   powerAnim = null;
   combo = 0;
+  maxCombo = 0;
   lastWasDifficult = false;
   lastWasRotate = false;
   floatTexts = [];
@@ -1151,6 +1364,7 @@ function init() {
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
+  pauseOverlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
@@ -1171,7 +1385,7 @@ document.addEventListener('keydown', e => {
 
   if (showingNext5) { closeShowNext5(); return; }
 
-  if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'KeyP' || (e.code === 'Escape' && paused)) { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
@@ -1206,6 +1420,18 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', showChallengeSelect);
 
+pauseResumeBtn.addEventListener('click', () => { if (paused) togglePause(); });
+pauseRestartBtn.addEventListener('click', () => {
+  cancelAnimationFrame(animId);
+  paused = false;
+  current = null;
+  pauseOverlay.classList.add('hidden');
+  showChallengeSelect();
+});
+pauseControlsBtn.addEventListener('click', () => {
+  pauseControlsList.classList.toggle('hidden');
+});
+
 document.querySelectorAll('.challenge-btn').forEach(btn => {
   btn.addEventListener('click', () => startGame(btn.dataset.id));
 });
@@ -1225,4 +1451,18 @@ themeToggle.addEventListener('click', () => {
   themeToggle.blur();
 });
 
+document.querySelectorAll('.skin-btn').forEach(btn => {
+  if (btn.dataset.skin === currentSkin) btn.classList.add('active');
+  btn.addEventListener('click', () => {
+    currentSkin = btn.dataset.skin;
+    localStorage.setItem('tetris_skin', currentSkin);
+    document.querySelectorAll('.skin-btn').forEach(b => b.classList.toggle('active', b.dataset.skin === currentSkin));
+    draw();
+  });
+});
+
 showChallengeSelect();
+renderScoresTable();
+renderChallengeScores();
+
+document.getElementById('clear-records-btn').addEventListener('click', clearRecords);

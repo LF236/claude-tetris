@@ -413,3 +413,266 @@ kbd {
   color: var(--accent);
   line-height: 1.4;
 }
+
+/* ---- High Scores Table ---- */
+.scores-table {
+  width: 100%;
+  max-width: 300px;
+}
+
+.scores-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+}
+
+.scores-tbl thead th {
+  color: var(--label);
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 2px 4px;
+  text-align: left;
+}
+
+.scores-tbl tbody tr {
+  color: var(--muted);
+  transition: color 0.2s;
+}
+
+.scores-tbl tbody tr.score-new {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.scores-tbl td {
+  padding: 3px 4px;
+  border-top: 1px solid var(--border);
+}
+
+.sc-rank { color: var(--label); width: 24px; }
+.sc-name { font-weight: 700; color: var(--text); }
+.sc-score { text-align: right; }
+.sc-combo { text-align: right; color: #ffd700; }
+.sc-lines { text-align: right; }
+
+.scores-empty {
+  font-size: 10px;
+  color: var(--label);
+  letter-spacing: 1px;
+}
+
+/* ---- Challenge compact scores ---- */
+.challenge-scores {
+  width: 100%;
+  max-width: 280px;
+}
+
+.cs-list {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  gap: 2px 6px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 10px;
+  align-items: center;
+}
+
+.cs-rank { color: var(--label); }
+.cs-name { color: var(--text); font-weight: 700; }
+.cs-score { color: var(--accent); text-align: right; }
+
+/* ---- Name input form ---- */
+.name-input-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.name-input-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--label);
+  font-weight: 700;
+}
+
+/* ---- Pause Menu ---- */
+.pause-box {
+  min-width: 200px;
+}
+
+.pause-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: var(--accent);
+}
+
+.pause-btn {
+  width: 100%;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border: none;
+  border-radius: 6px;
+  padding: 10px 28px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+
+.pause-btn:hover {
+  background: var(--accent-hover);
+}
+
+.pause-btn--secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.pause-btn--secondary:hover {
+  background: var(--border);
+}
+
+#pause-controls-list {
+  list-style: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+#pause-controls-list.hidden {
+  display: none;
+}
+
+#pause-controls-list li {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pause-level-selector {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.pause-level-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--label);
+  font-weight: 700;
+}
+
+.name-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.name-input {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-align: center;
+  text-transform: uppercase;
+  width: 72px;
+  padding: 4px 8px;
+  outline: none;
+}
+
+.name-input:focus {
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.name-confirm-btn {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border: none;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.name-confirm-btn:hover {
+  background: var(--accent-hover);
+}
+
+/* ---- Clear records button ---- */
+.clear-records-btn {
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 10px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  padding: 4px 8px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  text-decoration: underline;
+}
+
+.clear-records-btn:hover {
+  opacity: 1;
+}
+
+.pause-select {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+}
+
+/* ---- Skin Selector ---- */
+#skin-selector {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  gap: 6px;
+}
+
+.skin-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.skin-btn:hover, .skin-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
