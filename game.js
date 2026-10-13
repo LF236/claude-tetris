@@ -83,6 +83,21 @@ const energyHint = document.getElementById('energy-hint');
 const holdCanvas = document.getElementById('hold-canvas');
 const holdCtx = holdCanvas.getContext('2d');
 const holdSection = document.getElementById('hold-section');
+const pauseOverlay = document.getElementById('pause-overlay');
+const pauseResumeBtn = document.getElementById('pause-resume-btn');
+const pauseRestartBtn = document.getElementById('pause-restart-btn');
+const pauseControlsBtn = document.getElementById('pause-controls-btn');
+const pauseControlsList = document.getElementById('pause-controls-list');
+const pauseStartLevelEl = document.getElementById('pause-start-level');
+
+let startLevel = parseInt(localStorage.getItem('tetris_startLevel') || '1', 10);
+if (startLevel < 1 || startLevel > 15 || isNaN(startLevel)) startLevel = 1;
+pauseStartLevelEl.value = String(startLevel);
+
+pauseStartLevelEl.addEventListener('change', () => {
+  startLevel = parseInt(pauseStartLevelEl.value, 10);
+  localStorage.setItem('tetris_startLevel', String(startLevel));
+});
 
 let board, current, pieceQueue, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, boardHoles;
 let pendingPower, pendingMono, frozenUntil, powerAnim;
@@ -96,7 +111,7 @@ const CHALLENGES = {
   sprint: {
     label: '⏱ SPRINT 40',
     desc: 'Limpia 40 líneas en 2 min',
-    setup() { return { startLines: 0, timeLeft: 120_000 }; },
+    setup() { return { startLines: lines, timeLeft: 120_000 }; },
     tick(state, dt) {
       if (gameOver) return;
       state.timeLeft = Math.max(0, state.timeLeft - dt);
@@ -237,6 +252,7 @@ function fillPreset() {
 
 function showChallengeSelect() {
   overlay.classList.add('hidden');
+  pauseOverlay.classList.add('hidden');
   challengeSelectEl.classList.remove('hidden');
 }
 
@@ -1193,14 +1209,13 @@ function togglePause() {
   if (!current || gameOver) return;
   paused = !paused;
   if (!paused) {
+    pauseOverlay.classList.add('hidden');
     lastTime = performance.now();
     loop(lastTime);
   } else {
     cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayTitle.style.color = '';
-    overlayScore.textContent = '';
-    overlay.classList.remove('hidden');
+    pauseControlsList.classList.add('hidden');
+    pauseOverlay.classList.remove('hidden');
   }
 }
 
@@ -1237,13 +1252,13 @@ function loop(ts) {
 function init() {
   board = createBoard();
   score = 0;
-  lines = 0;
-  level = 1;
+  level = startLevel;
+  lines = (startLevel - 1) * 10;
   paused = false;
   gameOver = false;
   boardHoles = new Set();
   invisibleCells = new Set();
-  dropInterval = 1000;
+  dropInterval = Math.max(100, 1000 - (startLevel - 1) * 90);
   dropAccum = 0;
   lastTime = performance.now();
   pendingPower = false;
@@ -1281,6 +1296,7 @@ function init() {
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
+  pauseOverlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
@@ -1301,7 +1317,7 @@ document.addEventListener('keydown', e => {
 
   if (showingNext5) { closeShowNext5(); return; }
 
-  if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'KeyP' || (e.code === 'Escape' && paused)) { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
@@ -1335,6 +1351,18 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', showChallengeSelect);
+
+pauseResumeBtn.addEventListener('click', () => { if (paused) togglePause(); });
+pauseRestartBtn.addEventListener('click', () => {
+  cancelAnimationFrame(animId);
+  paused = false;
+  current = null;
+  pauseOverlay.classList.add('hidden');
+  showChallengeSelect();
+});
+pauseControlsBtn.addEventListener('click', () => {
+  pauseControlsList.classList.toggle('hidden');
+});
 
 document.querySelectorAll('.challenge-btn').forEach(btn => {
   btn.addEventListener('click', () => startGame(btn.dataset.id));
