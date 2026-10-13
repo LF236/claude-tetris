@@ -394,6 +394,15 @@ kbd {
   border: 1px solid var(--border);
   background: var(--surface);
   border-radius: 4px;
+  transition: opacity 0.2s;
+}
+
+#hold-section.hold-locked #hold-canvas {
+  opacity: 0.3;
+}
+
+#hold-section.hold-locked > .label {
+  opacity: 0.45;
 }
 
 /* ---- Challenge HUD ---- */

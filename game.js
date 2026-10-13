@@ -88,7 +88,7 @@ let board, current, pieceQueue, score, lines, level, paused, gameOver, lastTime,
 let pendingPower, pendingMono, frozenUntil, powerAnim;
 let combo, lastWasDifficult, lastWasRotate, floatTexts, audioCtx;
 let challengeMode, invisibleCells;
-let energy, skillMenuOpen, showingNext5, slowUntil, savedBoard, savedCurrent, savedScore, holdPiece;
+let energy, skillMenuOpen, showingNext5, slowUntil, savedBoard, savedCurrent, savedScore, holdPiece, holdLocked;
 
 // ---- Challenge system ----
 
@@ -559,6 +559,8 @@ function lockPiece() {
 }
 
 function spawn() {
+  holdLocked = false;
+  updateHoldLocked();
   current = pieceQueue.shift();
   pieceQueue.push(nextPiece());
   if (collide(current.shape, current.x, current.y)) {
@@ -1006,25 +1008,33 @@ function skillUndo() {
   addFloatText('↩ DESHECHO', '#ffd54f', 'bold 14px monospace', canvas.height * 0.35);
 }
 
-function skillHold() {
+function updateHoldLocked() {
+  holdSection.classList.toggle('hold-locked', !!holdLocked);
+}
+
+function doHold() {
+  if (holdLocked || gameOver || paused || current.isPower) return;
+  holdLocked = true;
   if (holdPiece) {
-    const temp = { ...holdPiece, shape: holdPiece.shape.map(r => [...r]) };
-    temp.x = Math.max(0, Math.min(current.x, COLS - temp.shape[0].length));
-    temp.y = 0;
-    holdPiece = { type: current.type, shape: current.shape.map(r => [...r]) };
-    current = temp;
-    if (collide(current.shape, current.x, current.y)) {
-      current.x = Math.floor(COLS / 2) - Math.floor(current.shape[0].length / 2);
-    }
+    const incoming = makePiece(holdPiece.type);
+    if (collide(incoming.shape, incoming.x, incoming.y)) incoming.x = 0;
+    holdPiece = { type: current.type, shape: PIECES[current.type].map(r => [...r]) };
+    current = incoming;
   } else {
-    holdPiece = { type: current.type, shape: current.shape.map(r => [...r]) };
+    holdPiece = { type: current.type, shape: PIECES[current.type].map(r => [...r]) };
     current = pieceQueue.shift();
     pieceQueue.push(nextPiece());
     drawNext();
   }
   lastWasRotate = false;
-  holdSection.style.display = '';
+  dropAccum = 0;
   drawHold();
+  updateHoldLocked();
+}
+
+function skillHold() {
+  holdLocked = false;
+  doHold();
   addFloatText('📦 RESERVADO', '#ffb74d', 'bold 13px monospace', canvas.height * 0.35);
 }
 
@@ -1133,7 +1143,10 @@ function init() {
   savedCurrent = null;
   savedScore = null;
   holdPiece = null;
-  holdSection.style.display = 'none';
+  holdLocked = false;
+  holdSection.style.display = '';
+  drawHold();
+  updateHoldLocked();
   updateEnergyBar();
   spawn();
   updateHUD();
@@ -1177,6 +1190,12 @@ document.addEventListener('keydown', e => {
     case 'Space':
       e.preventDefault();
       hardDrop();
+      break;
+    case 'KeyC':
+    case 'ShiftLeft':
+    case 'ShiftRight':
+      e.preventDefault();
+      doHold();
       break;
     case 'KeyQ':
       if (energy >= MAX_ENERGY) openSkillMenu();
