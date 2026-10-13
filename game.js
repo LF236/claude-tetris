@@ -86,7 +86,7 @@ const holdSection = document.getElementById('hold-section');
 
 let board, current, pieceQueue, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, boardHoles;
 let pendingPower, pendingMono, frozenUntil, powerAnim;
-let combo, lastWasDifficult, lastWasRotate, floatTexts, audioCtx;
+let combo, maxCombo, lastWasDifficult, lastWasRotate, floatTexts, audioCtx;
 let challengeMode, invisibleCells;
 let energy, skillMenuOpen, showingNext5, slowUntil, savedBoard, savedCurrent, savedScore, holdPiece, holdLocked;
 
@@ -165,6 +165,16 @@ function winChallenge() {
   overlayTitle.style.color = '#ffd700';
   overlayScore.textContent = `${score.toLocaleString()} pts`;
   overlay.classList.remove('hidden');
+  if (isTopScore(score)) {
+    const savedScore = score, savedCombo = maxCombo, savedLines = lines;
+    showNameInput(name => {
+      saveRecord(name, savedScore, savedCombo, savedLines);
+      renderScoresTable(true);
+      renderChallengeScores();
+    });
+  } else {
+    renderScoresTable();
+  }
 }
 
 function loseChallenge(reason) {
@@ -175,6 +185,16 @@ function loseChallenge(reason) {
   overlayTitle.style.color = '';
   overlayScore.textContent = `${score.toLocaleString()} pts`;
   overlay.classList.remove('hidden');
+  if (isTopScore(score)) {
+    const savedScore = score, savedCombo = maxCombo, savedLines = lines;
+    showNameInput(name => {
+      saveRecord(name, savedScore, savedCombo, savedLines);
+      renderScoresTable(true);
+      renderChallengeScores();
+    });
+  } else {
+    renderScoresTable();
+  }
 }
 
 function riseGarbage() {
@@ -380,7 +400,7 @@ function clearLines(tspin = null, fromPower = false) {
   const isDifficult = cleared >= 4 || !!tspin;
   const b2b = isDifficult && lastWasDifficult;
 
-  if (!fromPower) combo++;
+  if (!fromPower) { combo++; if (combo > maxCombo) maxCombo = combo; }
   const comboMult = Math.min(combo, 8);
 
   let baseScore = 0;
@@ -1050,6 +1070,105 @@ function drawHold() {
       drawBlock(holdCtx, offX + c, offY + r, shape[r][c], NB);
 }
 
+// ---- High Scores ----
+
+function loadRecords() {
+  try { return JSON.parse(localStorage.getItem('tetris_records') || '[]'); } catch(e) { return []; }
+}
+
+function saveRecord(name, score, combo, lines) {
+  const records = loadRecords();
+  _lastRecordTs = Date.now();
+  records.push({ name: name.trim() || 'AAA', score, combo, lines, date: new Date().toLocaleDateString(), _ts: _lastRecordTs });
+  records.sort((a, b) => b.score - a.score);
+  records.splice(5); // top 5 only
+  localStorage.setItem('tetris_records', JSON.stringify(records));
+  return records;
+}
+
+function clearRecords() {
+  localStorage.removeItem('tetris_records');
+  renderScoresTable();
+  renderChallengeScores();
+}
+
+function isTopScore(score) {
+  const records = loadRecords();
+  return records.length < 5 || score > records[records.length - 1].score;
+}
+
+let _lastRecordTs = null;
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderScoresTable(highlightNew = false) {
+  const el = document.getElementById('scores-table');
+  if (!el) return;
+  const records = loadRecords();
+  if (!records.length) {
+    el.innerHTML = '<p class="scores-empty">Sin récords aún</p>';
+    return;
+  }
+  const rows = records.map((r, i) => {
+    const isNew = highlightNew && r._ts === _lastRecordTs;
+    return `<tr class="${isNew ? 'score-new' : ''}">
+      <td class="sc-rank">#${i + 1}</td>
+      <td class="sc-name">${escHtml(r.name)}</td>
+      <td class="sc-score">${r.score.toLocaleString()}</td>
+      <td class="sc-combo">×${r.combo}</td>
+      <td class="sc-lines">${r.lines}L</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<table class="scores-tbl"><thead><tr>
+    <th></th><th>NOM</th><th>PTS</th><th>CMB</th><th>LIN</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderChallengeScores() {
+  const el = document.getElementById('challenge-scores');
+  if (!el) return;
+  const records = loadRecords();
+  if (!records.length) { el.innerHTML = ''; return; }
+  const rows = records.map((r, i) =>
+    `<span class="cs-rank">#${i + 1}</span><span class="cs-name">${escHtml(r.name)}</span><span class="cs-score">${r.score.toLocaleString()}</span>`
+  ).join('');
+  el.innerHTML = `<div class="cs-list">${rows}</div>`;
+}
+
+function showNameInput(onConfirm) {
+  const overlayBox = overlay.querySelector('.overlay-box');
+  const existing = document.getElementById('name-input-form');
+  if (existing) existing.remove();
+
+  const form = document.createElement('div');
+  form.id = 'name-input-form';
+  form.className = 'name-input-form';
+  form.innerHTML = `
+    <label class="name-input-label">TU NOMBRE (3 letras)</label>
+    <div class="name-input-row">
+      <input id="name-input" class="name-input" type="text" maxlength="3" placeholder="AAA" autocomplete="off" />
+      <button id="name-confirm-btn" class="name-confirm-btn">OK</button>
+    </div>
+  `;
+  // Insert before restart-btn
+  const restartBtnEl = document.getElementById('restart-btn');
+  overlayBox.insertBefore(form, restartBtnEl);
+
+  const input = document.getElementById('name-input');
+  const confirmBtn = document.getElementById('name-confirm-btn');
+  input.focus();
+
+  function confirm() {
+    const name = input.value;
+    form.remove();
+    onConfirm(name);
+  }
+  confirmBtn.addEventListener('click', confirm);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirm(); } });
+}
+
 function endGame() {
   if (gameOver) return;
   gameOver = true;
@@ -1058,6 +1177,16 @@ function endGame() {
   overlayTitle.style.color = '';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
+  if (isTopScore(score)) {
+    const savedScore = score, savedCombo = maxCombo, savedLines = lines;
+    showNameInput(name => {
+      saveRecord(name, savedScore, savedCombo, savedLines);
+      renderScoresTable(true);
+      renderChallengeScores();
+    });
+  } else {
+    renderScoresTable();
+  }
 }
 
 function togglePause() {
@@ -1122,6 +1251,7 @@ function init() {
   frozenUntil = 0;
   powerAnim = null;
   combo = 0;
+  maxCombo = 0;
   lastWasDifficult = false;
   lastWasRotate = false;
   floatTexts = [];
@@ -1226,3 +1356,7 @@ themeToggle.addEventListener('click', () => {
 });
 
 showChallengeSelect();
+renderScoresTable();
+renderChallengeScores();
+
+document.getElementById('clear-records-btn').addEventListener('click', clearRecords);
