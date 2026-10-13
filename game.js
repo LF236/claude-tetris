@@ -64,6 +64,25 @@ const PIECES = [
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+const SKINS = {
+  retro: {
+    colors: ['#4dd0e1','#ffd54f','#ba68c8','#81c784','#e57373','#90caf9','#ffb74d'],
+    bg: null,
+  },
+  neon: {
+    colors: ['#00fff5','#ffe600','#df00ff','#00ff41','#ff003c','#0099ff','#ff8800'],
+    bg: '#050508',
+  },
+  pastel: {
+    colors: ['#a8e6cf','#ffd3b6','#d4a5c9','#b8e0d2','#f9c0c0','#b5d5e8','#fce0a0'],
+    bg: null,
+  },
+  pixel: {
+    colors: ['#4dd0e1','#ffd54f','#ba68c8','#81c784','#e57373','#90caf9','#ffb74d'],
+    bg: null,
+  },
+};
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -83,6 +102,8 @@ const energyHint = document.getElementById('energy-hint');
 const holdCanvas = document.getElementById('hold-canvas');
 const holdCtx = holdCanvas.getContext('2d');
 const holdSection = document.getElementById('hold-section');
+
+let currentSkin = localStorage.getItem('tetris_skin') || 'retro';
 
 let board, current, pieceQueue, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, boardHoles;
 let pendingPower, pendingMono, frozenUntil, powerAnim;
@@ -654,27 +675,67 @@ function drawNutHole(context, bx, by, size, alpha) {
   context.globalAlpha = 1;
 }
 
+function getBlockColor(colorIndex) {
+  const skin = SKINS[currentSkin];
+  if (colorIndex >= 1 && colorIndex <= 7) return skin.colors[colorIndex - 1];
+  return COLORS[colorIndex];
+}
+
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
+  const color = getBlockColor(colorIndex);
   context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
 
+  // Draw base block according to skin
+  if (currentSkin === 'neon') {
+    context.shadowBlur = 14;
+    context.shadowColor = color;
+    context.fillStyle = color;
+    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    context.shadowBlur = 0;
+  } else if (currentSkin === 'pastel') {
+    context.fillStyle = color;
+    context.beginPath();
+    if (context.roundRect) {
+      context.roundRect(x * size + 2, y * size + 2, size - 4, size - 4, 6);
+    } else {
+      context.rect(x * size + 2, y * size + 2, size - 4, size - 4);
+    }
+    context.fill();
+  } else if (currentSkin === 'pixel') {
+    context.fillStyle = color;
+    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    // Checkerboard texture overlay
+    const hw = Math.floor((size - 2) / 2);
+    const bx = x * size + 1;
+    const by = y * size + 1;
+    context.fillStyle = 'rgba(0,0,0,0.18)';
+    context.fillRect(bx,      by,      hw, hw);
+    context.fillRect(bx + hw, by + hw, hw, hw);
+    context.fillStyle = 'rgba(255,255,255,0.08)';
+    context.fillRect(bx + hw, by,      hw, hw);
+    context.fillRect(bx,      by + hw, hw, hw);
+  } else {
+    // retro (default)
+    context.fillStyle = color;
+    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+  }
+
+  // Draw overlay decorations
   if (colorIndex === WILDCARD) {
     const cx = x * size + size / 2;
     const cy = y * size + size / 2;
     const s = size * 0.22;
     context.fillStyle = 'rgba(255,255,255,0.4)';
     context.beginPath();
-    context.moveTo(cx,       cy - s * 1.5);
-    context.lineTo(cx + s * 0.6, cy - s * 0.6);
-    context.lineTo(cx + s * 1.5, cy);
-    context.lineTo(cx + s * 0.6, cy + s * 0.6);
-    context.lineTo(cx,       cy + s * 1.5);
-    context.lineTo(cx - s * 0.6, cy + s * 0.6);
-    context.lineTo(cx - s * 1.5, cy);
-    context.lineTo(cx - s * 0.6, cy - s * 0.6);
+    context.moveTo(cx,            cy - s * 1.5);
+    context.lineTo(cx + s * 0.6,  cy - s * 0.6);
+    context.lineTo(cx + s * 1.5,  cy);
+    context.lineTo(cx + s * 0.6,  cy + s * 0.6);
+    context.lineTo(cx,            cy + s * 1.5);
+    context.lineTo(cx - s * 0.6,  cy + s * 0.6);
+    context.lineTo(cx - s * 1.5,  cy);
+    context.lineTo(cx - s * 0.6,  cy - s * 0.6);
     context.closePath();
     context.fill();
   } else if (colorIndex >= POWERS.BOMB && colorIndex <= POWERS.FREEZE) {
@@ -684,16 +745,21 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
     context.fillText(POWER_SYMBOLS[colorIndex], x * size + size / 2, y * size + size / 2);
     context.textAlign = 'left';
     context.textBaseline = 'alphabetic';
-  } else {
+  } else if (currentSkin === 'retro') {
     context.fillStyle = 'rgba(255,255,255,0.12)';
     context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  } else if (currentSkin === 'pastel') {
+    context.fillStyle = 'rgba(255,255,255,0.35)';
+    context.fillRect(x * size + 2, y * size + 2, size - 4, 5);
   }
 
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--grid').trim();
+  ctx.strokeStyle = currentSkin === 'neon'
+    ? 'rgba(0,255,200,0.08)'
+    : getComputedStyle(document.body).getPropertyValue('--grid').trim();
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -712,6 +778,8 @@ function drawGrid() {
 function draw() {
   if (!current) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = SKINS[currentSkin].bg || getComputedStyle(canvas).backgroundColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawGrid();
 
   for (let r = 0; r < ROWS; r++)
@@ -1223,6 +1291,16 @@ function setTheme(light) {
 themeToggle.addEventListener('click', () => {
   setTheme(!document.body.classList.contains('light'));
   themeToggle.blur();
+});
+
+document.querySelectorAll('.skin-btn').forEach(btn => {
+  if (btn.dataset.skin === currentSkin) btn.classList.add('active');
+  btn.addEventListener('click', () => {
+    currentSkin = btn.dataset.skin;
+    localStorage.setItem('tetris_skin', currentSkin);
+    document.querySelectorAll('.skin-btn').forEach(b => b.classList.toggle('active', b.dataset.skin === currentSkin));
+    draw();
+  });
 });
 
 showChallengeSelect();
