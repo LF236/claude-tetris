@@ -35,6 +35,7 @@ const PENTOMINOS = [15, 16, 17];
 const MONO = 18;
 const CHALLENGE = 19;
 const GARBAGE = 20;
+const MAX_ENERGY = 5;
 const POWER_NAMES = { 10: 'BOMBA', 11: 'RAYO', 12: 'TINTE', 13: 'GRAVEDAD', 14: 'CONGELAR' };
 const POWER_SYMBOLS = { 10: '💣', 11: '⚡', 12: '🎨', 13: '🌊', 14: '❄' };
 
@@ -77,11 +78,17 @@ const restartBtn = document.getElementById('restart-btn');
 const challengeSelectEl = document.getElementById('challenge-select');
 const challengeHudSection = document.getElementById('challenge-hud');
 const challengeHudValue = document.getElementById('challenge-hud-value');
+const energyBar = document.getElementById('energy-bar');
+const energyHint = document.getElementById('energy-hint');
+const holdCanvas = document.getElementById('hold-canvas');
+const holdCtx = holdCanvas.getContext('2d');
+const holdSection = document.getElementById('hold-section');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, boardHoles;
+let board, current, pieceQueue, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, boardHoles;
 let pendingPower, pendingMono, frozenUntil, powerAnim;
 let combo, lastWasDifficult, lastWasRotate, floatTexts, audioCtx;
 let challengeMode, invisibleCells;
+let energy, skillMenuOpen, showingNext5, slowUntil, savedBoard, savedCurrent, savedScore, holdPiece;
 
 // ---- Challenge system ----
 
@@ -363,6 +370,8 @@ function clearLines(tspin = null, fromPower = false) {
   level = Math.floor(lines / 10) + 1;
   dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   if (Math.floor(lines / POWER_INTERVAL) > prevMilestone) pendingPower = true;
+  energy = Math.min(MAX_ENERGY, energy + cleared);
+  updateEnergyBar();
 
   if (challengeMode) CHALLENGES[challengeMode.id].onLines(challengeMode.state);
   if (gameOver) return cleared;
@@ -542,6 +551,7 @@ function lockPiece() {
   } else {
     const tspin = current.type === 3 && lastWasRotate ? detectTSpin() : null;
     lastWasRotate = false;
+    saveUndoState();
     merge();
     clearLines(tspin);
     spawn();
@@ -549,8 +559,8 @@ function lockPiece() {
 }
 
 function spawn() {
-  current = next;
-  next = nextPiece();
+  current = pieceQueue.shift();
+  pieceQueue.push(nextPiece());
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
@@ -738,6 +748,15 @@ function draw() {
     ctx.textAlign = 'left';
   }
 
+  if (slowUntil && now < slowUntil) {
+    const secs = Math.ceil((slowUntil - now) / 1000);
+    ctx.fillStyle = '#90caf9';
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`🐢 ${secs}s`, canvas.width / 2, 34);
+    ctx.textAlign = 'left';
+  }
+
   if (powerAnim) {
     const elapsed = now - powerAnim.startTime;
     const duration = 1800;
@@ -768,6 +787,7 @@ function draw() {
 }
 
 function drawNext() {
+  const next = pieceQueue[0];
   const NB = 30;
   nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
 
@@ -815,6 +835,211 @@ function drawNext() {
   }
 }
 
+// ---- Skills / Energy ----
+
+function updateEnergyBar() {
+  const segs = energyBar.querySelectorAll('.energy-seg');
+  segs.forEach((seg, i) => seg.classList.toggle('filled', i < energy));
+  energyBar.classList.toggle('full', energy >= MAX_ENERGY);
+  energyHint.classList.toggle('hidden', energy < MAX_ENERGY);
+}
+
+function saveUndoState() {
+  savedBoard = board.map(row => [...row]);
+  savedCurrent = { ...current, shape: current.shape.map(row => [...row]) };
+  savedScore = score;
+}
+
+function openSkillMenu() {
+  skillMenuOpen = true;
+  cancelAnimationFrame(animId);
+  draw();
+  drawSkillMenu();
+}
+
+function closeSkillMenu() {
+  skillMenuOpen = false;
+  lastTime = performance.now();
+  animId = requestAnimationFrame(loop);
+}
+
+function drawSkillMenu() {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 15px monospace';
+  ctx.fillStyle = '#ffd700';
+  ctx.fillText('⚡ ELIGE HABILIDAD', canvas.width / 2, 55);
+
+  const skills = [
+    { icon: '👁', name: 'VER 5 SIGUIENTES' },
+    { icon: '🔀', name: 'INTERCAMBIAR PIEZA' },
+    { icon: '🐢', name: 'RALENTIZAR 10s' },
+    { icon: '↩', name: 'DESHACER' },
+    { icon: '📦', name: 'RESERVAR PIEZA' },
+  ];
+
+  skills.forEach((s, i) => {
+    const y = 108 + i * 44;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillStyle = '#666';
+    ctx.fillText(`[${i + 1}]`, canvas.width / 2 - 92, y);
+    ctx.font = '15px serif';
+    ctx.fillStyle = '#e0e0e0';
+    ctx.fillText(s.icon, canvas.width / 2 - 50, y);
+    ctx.font = '12px monospace';
+    ctx.fillText(s.name, canvas.width / 2 + 32, y);
+  });
+
+  ctx.font = '9px monospace';
+  ctx.fillStyle = '#444';
+  ctx.fillText('ESC · cancelar', canvas.width / 2, canvas.height - 14);
+  ctx.textAlign = 'left';
+}
+
+function activateSkill(n) {
+  energy = 0;
+  updateEnergyBar();
+  closeSkillMenu();
+  switch (n) {
+    case 1: skillSeeNext5();  break;
+    case 2: skillSwapPiece(); break;
+    case 3: skillSlowTime();  break;
+    case 4: skillUndo();      break;
+    case 5: skillHold();      break;
+  }
+}
+
+function openShowNext5() {
+  showingNext5 = true;
+  cancelAnimationFrame(animId);
+  draw();
+  drawShowNext5();
+}
+
+function closeShowNext5() {
+  showingNext5 = false;
+  lastTime = performance.now();
+  animId = requestAnimationFrame(loop);
+}
+
+function drawShowNext5() {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.84)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 13px monospace';
+  ctx.fillStyle = '#4dd0e1';
+  ctx.fillText('👁 PRÓXIMAS 5 PIEZAS', canvas.width / 2, 28);
+
+  const NB = 18;
+  const previewW = 4 * NB;
+  const startX = Math.floor((canvas.width - previewW) / 2);
+
+  pieceQueue.forEach((p, qi) => {
+    const shape = p.shape;
+    const offX = Math.floor((4 - shape[0].length) / 2);
+    const offY = Math.floor((4 - shape.length) / 2);
+    const baseY = 44 + qi * 105;
+
+    ctx.font = '9px monospace';
+    ctx.fillStyle = '#555';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${qi + 1}`, startX - 4, baseY + NB);
+    ctx.textAlign = 'center';
+
+    for (let r = 0; r < shape.length; r++) {
+      for (let c = 0; c < shape[r].length; c++) {
+        if (!shape[r][c]) continue;
+        const px = startX + (offX + c) * NB;
+        const py = baseY + (offY + r) * NB;
+        const color = COLORS[shape[r][c]];
+        if (!color) continue;
+        ctx.fillStyle = color;
+        ctx.fillRect(px + 1, py + 1, NB - 2, NB - 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(px + 1, py + 1, NB - 2, 3);
+      }
+    }
+  });
+
+  ctx.font = '10px monospace';
+  ctx.fillStyle = '#555';
+  ctx.textAlign = 'center';
+  ctx.fillText('cualquier tecla · cerrar', canvas.width / 2, canvas.height - 10);
+  ctx.textAlign = 'left';
+}
+
+function skillSeeNext5() {
+  openShowNext5();
+}
+
+function skillSwapPiece() {
+  const type = Math.floor(Math.random() * 7) + 1;
+  const swapped = makePiece(type);
+  swapped.x = Math.max(0, Math.min(current.x, COLS - swapped.shape[0].length));
+  swapped.y = current.y;
+  if (collide(swapped.shape, swapped.x, swapped.y)) swapped.y = 0;
+  current = swapped;
+  lastWasRotate = false;
+  addFloatText('🔀 PIEZA CAMBIADA', '#90caf9', 'bold 13px monospace', canvas.height * 0.35);
+}
+
+function skillSlowTime() {
+  slowUntil = performance.now() + 10_000;
+  addFloatText('🐢 TIEMPO LENTO 10s', '#90caf9', 'bold 13px monospace', canvas.height * 0.35);
+}
+
+function skillUndo() {
+  if (!savedBoard) {
+    addFloatText('↩ SIN HISTORIAL', '#e57373', 'bold 13px monospace', canvas.height * 0.35);
+    return;
+  }
+  board = savedBoard;
+  current = savedCurrent;
+  score = savedScore;
+  savedBoard = null;
+  savedCurrent = null;
+  savedScore = null;
+  updateHUD();
+  addFloatText('↩ DESHECHO', '#ffd54f', 'bold 14px monospace', canvas.height * 0.35);
+}
+
+function skillHold() {
+  if (holdPiece) {
+    const temp = { ...holdPiece, shape: holdPiece.shape.map(r => [...r]) };
+    temp.x = Math.max(0, Math.min(current.x, COLS - temp.shape[0].length));
+    temp.y = 0;
+    holdPiece = { type: current.type, shape: current.shape.map(r => [...r]) };
+    current = temp;
+    if (collide(current.shape, current.x, current.y)) {
+      current.x = Math.floor(COLS / 2) - Math.floor(current.shape[0].length / 2);
+    }
+  } else {
+    holdPiece = { type: current.type, shape: current.shape.map(r => [...r]) };
+    current = pieceQueue.shift();
+    pieceQueue.push(nextPiece());
+    drawNext();
+  }
+  lastWasRotate = false;
+  holdSection.style.display = '';
+  drawHold();
+  addFloatText('📦 RESERVADO', '#ffb74d', 'bold 13px monospace', canvas.height * 0.35);
+}
+
+function drawHold() {
+  const NB = 30;
+  holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+  if (!holdPiece) return;
+  const shape = holdPiece.shape;
+  const offX = Math.floor((4 - shape[0].length) / 2);
+  const offY = Math.floor((4 - shape.length) / 2);
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++)
+      drawBlock(holdCtx, offX + c, offY + r, shape[r][c], NB);
+}
+
 function endGame() {
   if (gameOver) return;
   gameOver = true;
@@ -852,8 +1077,9 @@ function loop(ts) {
   }
 
   const frozen = frozenUntil > 0 && ts < frozenUntil;
+  const slowed = slowUntil > 0 && ts < slowUntil;
   if (!frozen) {
-    dropAccum += dt;
+    dropAccum += slowed ? dt / 3 : dt;
     if (dropAccum >= dropInterval) {
       dropAccum = 0;
       if (!collide(current.shape, current.x, current.y + 1)) {
@@ -897,7 +1123,18 @@ function init() {
     challengeHudSection.style.display = 'none';
   }
 
-  next = randomPiece();
+  pieceQueue = [];
+  for (let i = 0; i < 5; i++) pieceQueue.push(nextPiece());
+  energy = 0;
+  skillMenuOpen = false;
+  showingNext5 = false;
+  slowUntil = 0;
+  savedBoard = null;
+  savedCurrent = null;
+  savedScore = null;
+  holdPiece = null;
+  holdSection.style.display = 'none';
+  updateEnergyBar();
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
@@ -908,6 +1145,19 @@ function init() {
 document.addEventListener('keydown', e => {
   getAudioCtx();
   if (!current) return;
+
+  if (skillMenuOpen) {
+    if (e.code === 'Escape')  closeSkillMenu();
+    else if (e.code === 'Digit1') activateSkill(1);
+    else if (e.code === 'Digit2') activateSkill(2);
+    else if (e.code === 'Digit3') activateSkill(3);
+    else if (e.code === 'Digit4') activateSkill(4);
+    else if (e.code === 'Digit5') activateSkill(5);
+    return;
+  }
+
+  if (showingNext5) { closeShowNext5(); return; }
+
   if (e.code === 'KeyP') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
@@ -927,6 +1177,9 @@ document.addEventListener('keydown', e => {
     case 'Space':
       e.preventDefault();
       hardDrop();
+      break;
+    case 'KeyQ':
+      if (energy >= MAX_ENERGY) openSkillMenu();
       break;
   }
   updateHUD();

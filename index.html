@@ -40,6 +40,23 @@
           <canvas id="next-canvas" width="120" height="120"></canvas>
         </div>
 
+        <div class="panel-section">
+          <span class="label">ENERGÍA <kbd>Q</kbd></span>
+          <div id="energy-bar">
+            <div class="energy-seg"></div>
+            <div class="energy-seg"></div>
+            <div class="energy-seg"></div>
+            <div class="energy-seg"></div>
+            <div class="energy-seg"></div>
+          </div>
+          <span id="energy-hint" class="energy-hint hidden">PRESIONA Q</span>
+        </div>
+
+        <div class="panel-section" id="hold-section" style="display:none">
+          <span class="label">RESERVA</span>
+          <canvas id="hold-canvas" width="120" height="120"></canvas>
+        </div>
+
         <div class="panel-section" id="challenge-hud" style="display:none">
           <span class="label">DESAFÍO</span>
           <span id="challenge-hud-value" class="challenge-hud-value">...</span>
@@ -53,6 +70,7 @@
             <li><kbd>↓</kbd> bajar</li>
             <li><kbd>Space</kbd> caída</li>
             <li><kbd>P</kbd> pausa</li>
+            <li><kbd>Q</kbd> habilidad</li>
           </ul>
         </div>
       </aside>

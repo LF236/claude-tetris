@@ -348,6 +348,54 @@ kbd {
   transform: translateY(0);
 }
 
+/* ---- Energy Bar ---- */
+#energy-bar {
+  display: flex;
+  gap: 3px;
+}
+
+.energy-seg {
+  flex: 1;
+  height: 8px;
+  background: var(--border);
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+
+.energy-seg.filled {
+  background: #ffd700;
+}
+
+#energy-bar.full .energy-seg {
+  background: #ffd700;
+  animation: energy-pulse 0.7s ease-in-out infinite alternate;
+}
+
+@keyframes energy-pulse {
+  from { opacity: 0.7; }
+  to { opacity: 1; box-shadow: 0 0 8px #ffd700; }
+}
+
+.energy-hint {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: #ffd700;
+  font-weight: 700;
+  text-align: center;
+}
+
+.energy-hint.hidden {
+  visibility: hidden;
+}
+
+/* ---- Hold Canvas ---- */
+#hold-canvas {
+  display: block;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 4px;
+}
+
 /* ---- Challenge HUD ---- */
 .challenge-hud-value {
   font-family: 'Courier New', Courier, monospace;
