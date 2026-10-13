@@ -649,3 +649,30 @@ kbd {
   cursor: pointer;
   width: 100%;
 }
+
+/* ---- Skin Selector ---- */
+#skin-selector {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  gap: 6px;
+}
+
+.skin-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.skin-btn:hover, .skin-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
