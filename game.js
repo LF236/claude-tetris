@@ -20,11 +20,19 @@ const COLORS = [
   '#f48fb1', // 12 Tint
   '#00e5ff', // 13 Gravity
   '#b3e5fc', // 14 Freeze
+  '#e040fb', // 15 Plus - magenta
+  '#26c6da', // 16 U - teal
+  '#aed581', // 17 Y - lime
+  '#ffffff', // 18 Mono (1×1) - white
+  '#ff6e40', // 19 Challenge (3×3) - deep orange
 ];
 
 const WILDCARD = 9;
 const POWERS = { BOMB: 10, LIGHTNING: 11, TINT: 12, GRAVITY: 13, FREEZE: 14 };
 const POWER_INTERVAL = 2;
+const PENTOMINOS = [15, 16, 17];
+const MONO = 18;
+const CHALLENGE = 19;
 const POWER_NAMES = { 10: 'BOMBA', 11: 'RAYO', 12: 'TINTE', 13: 'GRAVEDAD', 14: 'CONGELAR' };
 const POWER_SYMBOLS = { 10: '💣', 11: '⚡', 12: '🎨', 13: '🌊', 14: '❄' };
 
@@ -44,6 +52,11 @@ const PIECES = [
   [[12]],                                      // Tint
   [[13]],                                      // Gravity
   [[14]],                                      // Freeze
+  [[0,15,0],[15,15,15],[0,15,0]],              // Plus (+)
+  [[16,0,16],[16,16,16]],                      // U
+  [[0,17],[17,17],[0,17],[0,17]],              // Y
+  [[18]],                                      // Mono (1×1)
+  [[19,19,19],[19,0,19],[19,19,19]],           // Challenge (3×3 hollow)
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
@@ -61,16 +74,34 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, boardHoles;
-let pendingPower, frozenUntil, powerAnim;
+let pendingPower, pendingMono, frozenUntil, powerAnim;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
-function randomPiece() {
-  const type = Math.floor(Math.random() * 8) + 1;
+function makePiece(type) {
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function randomPiece() {
+  return makePiece(Math.floor(Math.random() * 8) + 1);
+}
+
+function nextPiece() {
+  if (pendingMono) {
+    pendingMono = false;
+    return makePiece(MONO);
+  }
+  if (pendingPower) {
+    pendingPower = false;
+    return powerPiece();
+  }
+  const roll = Math.random();
+  if (roll < 0.03) return makePiece(CHALLENGE);
+  if (roll < 0.18) return makePiece(PENTOMINOS[Math.floor(Math.random() * PENTOMINOS.length)]);
+  return randomPiece();
 }
 
 function powerPiece() {
@@ -158,6 +189,10 @@ function clearLines() {
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
     if (Math.floor(lines / POWER_INTERVAL) > prevMilestone) pendingPower = true;
+    if (cleared >= 4) {
+      pendingMono = true;
+      powerAnim = { text: '⬜ TETRIS! BONUS 1×1', color: COLORS[MONO], startTime: performance.now() };
+    }
     updateHUD();
   }
 }
@@ -198,8 +233,7 @@ function lockPiece() {
 
 function spawn() {
   current = next;
-  next = pendingPower ? powerPiece() : randomPiece();
-  pendingPower = false;
+  next = nextPiece();
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
@@ -315,7 +349,7 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
     context.lineTo(cx - s * 0.6, cy - s * 0.6);
     context.closePath();
     context.fill();
-  } else if (colorIndex >= POWERS.BOMB) {
+  } else if (colorIndex >= POWERS.BOMB && colorIndex <= POWERS.FREEZE) {
     context.font = `${Math.floor(size * 0.55)}px serif`;
     context.textAlign = 'center';
     context.textBaseline = 'middle';
@@ -439,6 +473,21 @@ function drawNext() {
     for (let c = 0; c < shape[r].length; c++)
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
   if (next.type === 8) drawNutHole(nextCtx, offX + 1, offY + 1, NB);
+
+  const SPECIAL_LABELS = {
+    [MONO]: '🎁 1x1',
+    [CHALLENGE]: '⚠ RETO',
+    15: '✦ PLUS',
+    16: '⌣ U',
+    17: 'Y',
+  };
+  if (SPECIAL_LABELS[next.type]) {
+    nextCtx.fillStyle = COLORS[next.type];
+    nextCtx.font = 'bold 9px monospace';
+    nextCtx.textAlign = 'center';
+    nextCtx.fillText(SPECIAL_LABELS[next.type], nextCanvas.width / 2, nextCanvas.height - 3);
+    nextCtx.textAlign = 'left';
+  }
 }
 
 function endGame() {
@@ -496,6 +545,7 @@ function init() {
   dropAccum = 0;
   lastTime = performance.now();
   pendingPower = false;
+  pendingMono = false;
   frozenUntil = 0;
   powerAnim = null;
   next = randomPiece();
