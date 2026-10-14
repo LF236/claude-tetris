@@ -1410,6 +1410,7 @@ function init() {
   savedScore = null;
   holdPiece = null;
   holdLocked = false;
+  if (touchSoftDropId) { clearInterval(touchSoftDropId); touchSoftDropId = null; }
   holdSection.style.display = '';
   drawHold();
   updateHoldLocked();
@@ -1472,6 +1473,75 @@ document.addEventListener('keydown', e => {
       break;
   }
   updateHUD();
+});
+
+// ---- Touch controls ----
+
+let touchStartX = 0, touchStartY = 0, touchStartTime = 0, touchSoftDropId = null;
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  getAudioCtx();
+  const t = e.changedTouches[0];
+  touchStartX = t.clientX;
+  touchStartY = t.clientY;
+  touchStartTime = performance.now();
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (paused || gameOver || !current) return;
+  const t = e.changedTouches[0];
+  const dy = t.clientY - touchStartY;
+  const dx = t.clientX - touchStartX;
+  if (dy > 20 && Math.abs(dy) > Math.abs(dx) && !touchSoftDropId) {
+    touchSoftDropId = setInterval(() => {
+      if (!paused && !gameOver && current) softDrop();
+    }, 80);
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchStartX;
+  const dy = t.clientY - touchStartY;
+  const elapsed = performance.now() - touchStartTime;
+  const absDx = Math.abs(dx), absDy = Math.abs(dy);
+  const velocity = elapsed > 0 ? dy / elapsed : 0;
+
+  if (touchSoftDropId) {
+    clearInterval(touchSoftDropId);
+    touchSoftDropId = null;
+    if ((dy > 60 || velocity > 0.8) && !paused && !gameOver && current) {
+      hardDrop();
+      updateHUD();
+    }
+    return;
+  }
+
+  if (paused || gameOver || !current) return;
+
+  if (absDx < 20 && absDy < 20) {
+    tryRotate();
+  } else if (absDx > absDy && absDx > 20) {
+    if (dx < 0) {
+      if (!collide(current.shape, current.x - 1, current.y)) { current.x--; lastWasRotate = false; }
+    } else {
+      if (!collide(current.shape, current.x + 1, current.y)) { current.x++; lastWasRotate = false; }
+    }
+  } else if (dy > 20) {
+    if (dy > 60 || velocity > 0.8) {
+      hardDrop();
+    } else {
+      softDrop();
+    }
+  }
+  updateHUD();
+}, { passive: false });
+
+canvas.addEventListener('touchcancel', () => {
+  if (touchSoftDropId) { clearInterval(touchSoftDropId); touchSoftDropId = null; }
 });
 
 restartBtn.addEventListener('click', showChallengeSelect);
