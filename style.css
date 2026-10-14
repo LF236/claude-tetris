@@ -105,6 +105,7 @@ body {
   background: var(--surface);
   border-radius: 4px;
   box-shadow: 0 0 40px var(--shadow);
+  touch-action: none;
 }
 
 /* ---- Panel lateral ---- */
