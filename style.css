@@ -676,3 +676,30 @@ kbd {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* ---- Stats Table ---- */
+.stats-table {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 220px;
+}
+
+.stats-table td {
+  padding: 2px 6px;
+  border-top: 1px solid var(--border);
+}
+
+.stats-table td:first-child {
+  color: var(--label);
+  text-align: left;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.stats-table td:last-child {
+  color: var(--accent);
+  text-align: right;
+  font-weight: 700;
+}
