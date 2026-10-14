@@ -364,6 +364,20 @@ function tryRotate() {
   }
 }
 
+function tryRotateCCW() {
+  const useInverse = challengeMode?.id === 'mirror' && level >= 5;
+  const rotated = useInverse ? rotateCW(current.shape) : rotateCCW(current.shape);
+  const kicks = [0, -1, 1, -2, 2];
+  for (const kick of kicks) {
+    if (!collide(rotated, current.x + kick, current.y)) {
+      current.shape = rotated;
+      current.x += kick;
+      lastWasRotate = true;
+      return;
+    }
+  }
+}
+
 function merge() {
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
@@ -1400,6 +1414,9 @@ document.addEventListener('keydown', e => {
     case 'ArrowUp':
     case 'KeyX':
       tryRotate();
+      break;
+    case 'KeyZ':
+      tryRotateCCW();
       break;
     case 'Space':
       e.preventDefault();
