@@ -125,6 +125,7 @@ let pendingPower, pendingMono, frozenUntil, powerAnim;
 let combo, maxCombo, lastWasDifficult, lastWasRotate, floatTexts, audioCtx;
 let challengeMode, invisibleCells;
 let energy, skillMenuOpen, showingNext5, slowUntil, savedBoard, savedCurrent, savedScore, holdPiece, holdLocked;
+let piecesPlaced, clearCounts, tspinsTotal, startTimestamp;
 
 // ---- Challenge system ----
 
@@ -201,6 +202,7 @@ function winChallenge() {
   overlayTitle.style.color = '#ffd700';
   overlayScore.textContent = `${score.toLocaleString()} pts`;
   overlay.classList.remove('hidden');
+  injectStats();
   if (isTopScore(score)) {
     const savedScore = score, savedCombo = maxCombo, savedLines = lines;
     showNameInput(name => {
@@ -221,6 +223,7 @@ function loseChallenge(reason) {
   overlayTitle.style.color = '';
   overlayScore.textContent = `${score.toLocaleString()} pts`;
   overlay.classList.remove('hidden');
+  injectStats();
   if (isTopScore(score)) {
     const savedScore = score, savedCombo = maxCombo, savedLines = lines;
     showNameInput(name => {
@@ -424,6 +427,8 @@ function clearLines(tspin = null, fromPower = false) {
 
   const prevMilestone = Math.floor(lines / POWER_INTERVAL);
   lines += cleared;
+  clearCounts[Math.min(cleared, 4)]++;
+  if (tspin) tspinsTotal++;
   level = Math.floor(lines / 10) + 1;
   dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   if (Math.floor(lines / POWER_INTERVAL) > prevMilestone) pendingPower = true;
@@ -602,6 +607,7 @@ function softDrop() {
 }
 
 function lockPiece() {
+  piecesPlaced++;
   if (current.isPower) {
     triggerPower();
     spawn();
@@ -1253,6 +1259,34 @@ function showNameInput(onConfirm) {
   input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirm(); } });
 }
 
+function injectStats() {
+  const overlayBox = overlay.querySelector('.overlay-box');
+  const existing = document.getElementById('game-stats');
+  if (existing) existing.remove();
+
+  const elapsed = performance.now() - startTimestamp;
+  const mins = Math.floor(elapsed / 60000);
+  const secs = Math.floor((elapsed % 60000) / 1000);
+  const timeStr = `${mins}:${String(secs).padStart(2, '0')}`;
+  const lpm = elapsed > 0 ? (lines / (elapsed / 60000)).toFixed(1) : '0.0';
+
+  const div = document.createElement('div');
+  div.id = 'game-stats';
+  div.innerHTML = `<table class="stats-table">
+    <tr><td>Tiempo</td><td>${timeStr}</td></tr>
+    <tr><td>Piezas</td><td>${piecesPlaced}</td></tr>
+    <tr><td>Single</td><td>${clearCounts[1]}</td></tr>
+    <tr><td>Doble</td><td>${clearCounts[2]}</td></tr>
+    <tr><td>Triple</td><td>${clearCounts[3]}</td></tr>
+    <tr><td>Tetris</td><td>${clearCounts[4]}</td></tr>
+    <tr><td>T-Spins</td><td>${tspinsTotal}</td></tr>
+    <tr><td>LPM</td><td>${lpm}</td></tr>
+    <tr><td>Combo máx</td><td>×${maxCombo}</td></tr>
+  </table>`;
+
+  overlayBox.insertBefore(div, document.getElementById('restart-btn'));
+}
+
 function endGame() {
   if (gameOver) return;
   gameOver = true;
@@ -1261,6 +1295,7 @@ function endGame() {
   overlayTitle.style.color = '';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
+  injectStats();
   if (isTopScore(score)) {
     const savedScore = score, savedCombo = maxCombo, savedLines = lines;
     showNameInput(name => {
@@ -1338,6 +1373,10 @@ function init() {
   lastWasDifficult = false;
   lastWasRotate = false;
   floatTexts = [];
+  piecesPlaced = 0;
+  clearCounts = [0, 0, 0, 0, 0];
+  tspinsTotal = 0;
+  startTimestamp = performance.now();
 
   if (challengeMode) {
     challengeMode.state = CHALLENGES[challengeMode.id].setup();
